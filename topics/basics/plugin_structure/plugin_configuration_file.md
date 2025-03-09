@@ -44,6 +44,7 @@ Deprecated elements are omitted in the list below.
 
 - [`<idea-plugin>`](#idea-plugin)
   - [`<id>`](#idea-plugin__id)
+  - [`<module>`](#idea-plugin__module)
   - [`<name>`](#idea-plugin__name)
   - [`<version>`](#idea-plugin__version)
   - [`<product-descriptor>`](#idea-plugin__product-descriptor)
@@ -52,7 +53,12 @@ Deprecated elements are omitted in the list below.
   - [`<description>`](#idea-plugin__description)
   - [`<change-notes>`](#idea-plugin__change-notes)
   - [`<depends>`](#idea-plugin__depends)
+  - [`<dependencies>`](#idea-plugin__dependencies)
+    - [`<module>`](#idea-plugin__dependencies__module)
+    - [`<plugin>`](#idea-plugin__dependencies__plugin)
   - [`<incompatible-with>`](#idea-plugin__incompatible-with)
+  - [`<content>`](#idea-plugin__content)
+    - [`<module>`](#idea-plugin__content__module)
   - [`<extensions>`](#idea-plugin__extensions)
     - [An Extension](#idea-plugin__extensions__-)
   - [`<extensionPoints>`](#idea-plugin__extensionPoints)
@@ -105,16 +111,25 @@ Attributes
   The link to the plugin homepage displayed on the plugin page in
   the [JetBrains Marketplace](https://plugins.jetbrains.com).
 - `require-restart` _(optional)_<br/>
+  The boolean value determining whether the plugin installation, update, or uninstallation requires an IDE restart
+  (see [Dynamic Plugins](dynamic_plugins.md) for details).<br/>
+  Default value: `false`.
+- `package` _(optional)_<br/>
 
-    The boolean value determining whether the plugin installation, update, or uninstallation requires an IDE restart
-    (see [Dynamic Plugins](dynamic_plugins.md) for details).<br/>
-    Default value: `false`.
+    Defines a JVM package where all module's classes are located.
+    Packages are included recursively, for example, `com.example` implies `com.example.sub`.
+    
+    If a package is specified, then all module [dependencies](#idea-plugin__dependencies) of the plugin must also specify a package, and it must be
+    different. For example, if `com.example` is set for the main plugin descriptor, `com.example` cannot be used for any
+    module dependency.
 
 Children
 :
   - [`<actions>`](#idea-plugin__actions)
   - [`<applicationListeners>`](#idea-plugin__applicationListeners)
   - [`<change-notes>`](#idea-plugin__change-notes)
+  - [`<content>`](#idea-plugin__content)
+  - [`<dependencies>`](#idea-plugin__dependencies)
   - [`<depends>`](#idea-plugin__depends)
   - [`<description>`](#idea-plugin__description)
   - [`<extensionPoints>`](#idea-plugin__extensionPoints)
@@ -122,6 +137,7 @@ Children
   - [`<id>`](#idea-plugin__id)
   - [`<idea-version>`](#idea-plugin__idea-version)
   - [`<incompatible-with>`](#idea-plugin__incompatible-with)
+  - [`<module>`](#idea-plugin__module)
   - [`<name>`](#idea-plugin__name)
   - [`<product-descriptor>`](#idea-plugin__product-descriptor)
   - [`<projectListeners>`](#idea-plugin__projectListeners)
@@ -162,6 +178,32 @@ Example
   ```xml
   <id>com.example.framework</id>
   ```
+
+### `module`
+{#idea-plugin__module}
+
+Defines the current plugin's alias.
+
+The alias can be used instead of the plugin [ID](#idea-plugin__id) in [`depends`](#idea-plugin__depends)
+or [`dependencies/plugin@id`](#idea-plugin__dependencies__plugin__id).
+
+Aliases are usually added to core plugins and work as markers of the corresponding IDEs.
+For example, `com.intellij.modules.ruby-capable` alias is declared in core plugins for IntelliJ IDEA Ultimate and RubyMine,
+and the Ruby plugin has a dependency on that alias.
+It makes the Ruby plugin compatible with IntelliJ IDEA Ultimate and RubyMine only and prevents it from being installed in other IDEs.
+
+Aliases can be also used for compatibility reasons in regular plugins and modules.
+
+Avoid adding new aliases and using them for other reasons.
+
+
+
+{type="narrow"}
+Attributes
+:
+- `value` _(**required**)_<br/>
+
+    The alias value. It must be unique.
 
 ### `name`
 {#idea-plugin__name}
@@ -242,7 +284,8 @@ Attributes
 - `release-date` _(**required**)_<br/>
   Date of the major version release in the `YYYYMMDD` format.
 - `release-version` _(**required**)_<br/>
-  A major version in a special number format.
+  A major version in a specific number format, for example, `20242` for the 2024.2 major release.<br/>
+  See [`release-version` constraints](https://plugins.jetbrains.com/docs/marketplace/versioning-of-paid-plugins.html#release-version-constraints) for more details.
 - `optional` _(optional)_<br/>
   The boolean value determining whether the plugin is
   a [Freemium](https://plugins.jetbrains.com/docs/marketplace/freemium.html) plugin.<br/>
@@ -487,6 +530,68 @@ Examples
     </depends>
     ```
 
+### `dependencies`
+{#idea-plugin__dependencies}
+
+Defines the dependencies of the module.
+
+A dependency from an `optional` or `on-demand`
+[content](#idea-plugin__content) [module](#idea-plugin__content__module)
+to the main module of the containing plugin is added automatically.
+
+Circular dependencies aren't allowed: if a set of modules forms a dependency cycle, plugins which contain modules
+from the cycle will fail to load.
+
+
+Children
+:
+  - [`<module>`](#idea-plugin__dependencies__module)
+  - [`<plugin>`](#idea-plugin__dependencies__plugin)
+
+#### `module`
+{#idea-plugin__dependencies__module}
+
+A dependency on another module.
+
+
+
+{type="narrow"}
+Attributes
+:
+- `name` _(**required**)_<br/>
+
+    The name of the module to depend on.
+
+Example
+:
+  ```xml
+  <dependencies>
+    <module name="com.example.core"/>
+  </dependencies>
+  ```
+
+#### `plugin`
+{#idea-plugin__dependencies__plugin}
+
+Declares a dependency on the main module of another plugin.
+
+
+
+{type="narrow"}
+Attributes
+:
+- `id` _(**required**)_<br/>
+
+    The [ID](#idea-plugin__id) or [alias](#idea-plugin__module) of the plugin to depend on.
+
+Example
+:
+  ```xml
+  <dependencies>
+    <plugin id="com.example.plugin.id"/>
+  </dependencies>
+  ```
+
 ### `incompatible-with`
 {#idea-plugin__incompatible-with}
 
@@ -512,6 +617,80 @@ Example
     com.intellij.modules.appcode.ide
   </incompatible-with>
   ```
+
+### `content`
+{#idea-plugin__content}
+
+Defines the content modules of the plugin.
+
+The module which contains the plugin descriptor (<path>plugin.xml</path>) is included implicitly.
+
+{type="narrow"}
+Required
+: no
+
+Children
+:
+  - [`<module>`](#idea-plugin__content__module)
+
+Example
+:
+  ```xml
+  <content>
+    <module name="com.example.core" loading="required"/>
+    <module name="com.example.git"/>
+    <module name="com.example.i18n"/>
+  </content>
+  ```
+
+#### `module`
+{#idea-plugin__content__module}
+
+A content module to include in the plugin.<br/>
+Content modules contain components implementing the plugin functionality.
+Each content module's components are loaded with its own classloader (unless overridden with
+`loading="embedded"`).
+
+{type="narrow"}
+Required
+: no
+
+
+{type="narrow"}
+Attributes
+:
+- `name` _(**required**)_<br/>
+  The name of a JPS module to include in the plugin.
+- `loading`
+
+    Specifies when a content module of a plugin should be loaded.
+    Allowed values:
+    - `required` - the module is a required part of the plugin.
+      If the module cannot be loaded because some of its dependencies aren't available, the whole plugin isn't
+      loaded, and an error is shown to the user.
+    - `embedded` - the same as `required`, but also puts the module's classes to the main plugin JAR and loads them
+      using the main plugin classloader.
+      **This is an internal temporary option added to simplify the migration of some existing plugins.
+      For new modules, use `required` instead.**
+    - `optional` - the module is an optional part of the plugin.
+      If the module cannot be loaded, it is skipped and doesn't prevent other modules from the plugin from being
+      loaded.
+    - `on-demand` - the module is used by other modules of the plugin and doesn't provide user-visible functionality
+      itself.
+      The module is loaded if and only if another `required` or `optional` module, which depends on it, is loaded.
+      **This option isn't implemented yet and currently behaves the same way as `optional`.**<br/>
+    Default value: `optional`.
+
+Examples
+:
+- A module with the implicit `optional` `loading` behavior:
+    ```xml
+    <module name="com.example.core"/>
+    ```
+- A required module that will fail to load the plugin if it is unavailable:
+    ```xml
+    <module name="com.example.core" loading="required"/>
+    ```
 
 ### `extensions`
 {#idea-plugin__extensions}
@@ -690,11 +869,15 @@ Attributes
 
     The scope in which the [extension](plugin_extensions.md) is
     instantiated.
-    It is not recommended to use non-default values.
+    
     Allowed values:
       - `IDEA_APPLICATION` _(default)_
       - `IDEA_PROJECT`
       - `IDEA_MODULE` (**deprecated**)
+    
+    **It is strongly recommended not to introduce new project- and module-level extension points.**
+    If an extension point needs to operate on a `Project` or `Module` instance, declare an application-level extension
+    point and pass the instance as a method parameter.
 
 Children
 :
@@ -842,10 +1025,11 @@ Required
 {type="narrow"}
 Attributes
 :
-- `id` _(**required**)_<br/>
+- `id` _(optional; defaults to the action class short name if not specified)_<br/>
   A unique action identifier.
-  The action identifier must be unique between different plugins.
-  Thus, it is recommended to prepend it with the value of the plugin [`<id>`](#idea-plugin__id).
+  It is recommended to specify the `id` attribute explicitly.<br/>
+  The action identifier must be unique across different plugins.
+  To ensure uniqueness, consider prepending it with the value of the plugin's [`<id>`](#idea-plugin__id).
 - `class` _(**required**)_<br/>
   The fully qualified name of the action implementation class.
 - `text` _(**required** if the action is not
